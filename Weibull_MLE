@@ -1,0 +1,65 @@
+import numpy as np
+
+def weibull_mle(data, initial_beta, initial_eta, tolerance=1e-6, max_iterations=5000):
+    """
+    Weibull 분포의 형상 모수(beta)와 척도 모수(eta)를 추정하는 함수
+
+    Args:
+        data (list): 고장 시간 데이터
+        initial_beta (float): 초기 형상 모수 값
+        initial_eta (float): 초기 척도 모수 값
+        tolerance (float): 수렴 허용 오차
+        max_iterations (int): 최대 반복 횟수
+
+    Returns:
+        tuple: 추정된 형상 모수와 척도 모수
+    """
+    beta = initial_beta
+    eta = initial_eta
+    n = len(data)
+
+    for i in range(max_iterations):
+        # 우도 함수 및 그 도함수 계산
+        sum_log_t = sum(np.log(data))
+        sum_t_to_beta = sum(t ** beta for t in data)
+        sum_t_to_beta_log_t = sum(t ** beta * np.log(t) for t in data)
+        sum_t_to_2beta_log_t = sum(t ** (2 * beta) * np.log(t) for t in data)
+
+        likelihood = n * np.log(beta) - n * np.log(eta) + (beta - 1) * sum_log_t - sum_t_to_beta / eta ** beta
+        d_likelihood_d_beta = n / beta + sum_log_t - sum_t_to_beta_log_t / eta ** beta
+        d_likelihood_d_eta = -n / eta + beta * sum_t_to_beta / eta ** (beta + 1)
+        d2_likelihood_d_beta2 = -n / beta ** 2 - sum_t_to_2beta_log_t / eta ** beta
+        d2_likelihood_d_eta2 = n / eta ** 2 - beta * (beta + 1) * sum_t_to_beta / eta ** (beta + 2)
+        d2_likelihood_d_beta_d_eta = sum_t_to_beta_log_t / eta ** (beta + 1)
+
+        # Hessian 행렬 및 역행렬 계산
+        hessian_det = d2_likelihood_d_beta2 * d2_likelihood_d_eta2 - d2_likelihood_d_beta_d_eta ** 2
+        inv_hessian_d_beta2 = d2_likelihood_d_eta2 / hessian_det
+        inv_hessian_d_eta2 = d2_likelihood_d_beta2 / hessian_det
+        inv_hessian_d_beta_d_eta = -d2_likelihood_d_beta_d_eta / hessian_det
+
+        # Newton-Raphson 업데이트
+        new_beta = beta - (inv_hessian_d_beta2 * d_likelihood_d_beta + inv_hessian_d_beta_d_eta * d_likelihood_d_eta)
+        new_eta = eta - (inv_hessian_d_beta_d_eta * d_likelihood_d_beta + inv_hessian_d_eta2 * d_likelihood_d_eta)
+
+        # 수렴 확인
+        if abs(new_beta - beta) < tolerance and abs(new_eta - eta) < tolerance:
+            return new_beta, new_eta
+
+        beta = new_beta
+        eta = new_eta
+
+    return beta, eta  # 최대 반복 횟수 초과 시 현재 값 반환
+
+if __name__ == "__main__":
+    
+    # results : beta = 1.29, eta = 590.056
+    # data = [800, 350, 730, 1770, 390, 110, 100, 160, 940, 320, 40, 190, 590, 1260, 420, 250, 490, 1060, 290, 630]
+    data = [800, 350, 730, 1770, 390, 110, 100, 160, 940, 320, 40, 190, 590, 1260, 420, 250, 490, 1060, 290, 630]
+    initial_beta = 1.0  # 초기 형상 모수 값
+    initial_eta = 1.0  # 초기 척도 모수 값
+
+    estimated_beta, estimated_eta = weibull_mle(data, initial_beta, initial_eta)
+
+    print(f"Estimated Beta (Shape Parameter): {estimated_beta:.6f}")
+    print(f"Estimated Eta (Scale Parameter): {estimated_eta:.6f}")
